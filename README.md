@@ -1,0 +1,154 @@
+Симулятор колл‑центра (2D) — серверные расчёты, UI на клиенте
+================================================================
+
+Проект моделирует работу колл‑центра: поступление звонков (λ), обслуживание (AHT), пост‑обработка (ACW), SLA/порог ожидания, активные сотрудники с учётом шринкажа. Расчёты выполняются на бэкенде (Python/Flask), визуализация и управление — в браузере (ваш HTML/JS).
+
+Основные возможности
+--------------------
+- Веб‑интерфейс с визуализацией очереди/разговора/ACW и таблицей метрик.
+- Серверные расчёты: arrivals, assign, busy→ACW→idle, накопление минутных метрик (ASA, AHT, SLA, занятость и т. д.).
+- Параметры модели настраиваются в UI и отправляются на сервер при старте/сбросе.
+
+Структура проекта
+-----------------
+- `web/index.html` — ваш визуал и логика отрисовки, интеграция с API.
+- `scripts/serve.py` — точка входа (запуск Flask‑сервера).
+- `src/cc_simulator/app.py` — фабрика Flask‑приложения.
+- `src/cc_simulator/api.py` — эндпойнты API (`/api/start`, `/api/step`, `/api/results`, ...).
+- `src/cc_simulator/sim.py` — серверный движок симуляции и метрик.
+- `tests/` — базовые тесты симулятора.
+- `pyproject.toml` — метаданные пакета и зависимости.
+- `requirements.txt` — минимальный список рантайм‑зависимостей для установки одной командой.
+- `Dockerfile` — контейнеризация (по желанию).
+- `.github/workflows/ci.yml` — CI: установка и тесты при пуше/PR.
+- `Makefile` — удобные команды для установки/запуска/тестов.
+
+Быстрый старт (вариант A: локально)
+----------------------------------
+1) Установите зависимости и пакет:
+
+```zsh
+pip install -r requirements.txt
+pip install -e .
+```
+
+2) Запустите сервер (5000 может быть занят на macOS, используйте 5001):
+
+```zsh
+PORT=5001 python scripts/serve.py
+```
+
+3) Откройте UI: http://127.0.0.1:5001
+
+Быстрый старт (вариант B: Makefile)
+-----------------------------------
+```zsh
+make all        # установка + тесты
+PORT=5001 make run
+```
+
+Быстрый старт (вариант C: Docker)
+---------------------------------
+```zsh
+docker build -t cc-simulator .
+docker run --rm -p 5001:5000 -e PORT=5000 cc-simulator
+# затем откройте http://127.0.0.1:5001
+```
+
+Задачи VS Code (одна кнопка)
+----------------------------
+В разделе Run and Debug / Terminal → Run Task доступны задачи:
+- Install (pip install)
+- Test (pytest)
+- Run: Server (PORT=5001)
+- Docker: Build / Run
+
+Также доступен Makefile с целями install/run/test и docker-build/docker-run, а для CI — GitHub Actions workflow `.github/workflows/ci.yml`.
+
+API (для интеграций)
+--------------------
+- `POST /api/start` — тело JSON с параметрами `{lambda, aht, acw, sla, thr, occMax, shrink, N}`; сбрасывает и запускает модель.
+- `POST /api/step` — `{dt, speed}` продвигает модель и возвращает состояние/логи.
+- `GET /api/results` — текущие результаты и минутные логи.
+- `POST /api/reset` — сброс с параметрами, как у `/api/start`.
+- `GET /api/health` — статус сервера.
+
+Тесты
+-----
+```zsh
+python -m pytest -q
+```
+
+Подсказки
+---------
+- На macOS порт 5000 часто занят системным сервисом (ControlCenter). Используйте `PORT=5001`.
+- Если нужен полностью серверный расчёт и синхрон числа на экране — уже реализовано: UI отправляет `/api/step` пакетно, таблица строится из серверных логов.
+# CC Simulator
+
+## Overview
+The CC Simulator is a 2D simulation model designed to simulate the operations of a call center. It allows users to input various parameters related to call handling, such as incoming call rates, average handling times, and staff availability. The simulation visualizes the flow of calls through the system, providing insights into performance metrics like wait times, service levels, and agent utilization.
+
+## Project Structure
+```
+cc-simulator
+├── src
+│   └── cc_simulator
+│       ├── __init__.py
+│       ├── sim.py
+│       ├── api.py
+│       └── models.py
+├── web
+│   └── index.html
+├── tests
+│   └── test_sim.py
+├── scripts
+│   └── serve.py
+├── pyproject.toml
+├── .gitignore
+├── Makefile
+└── README.md
+```
+
+## Installation
+To set up the project, follow these steps:
+
+1. Clone the repository:
+   ```
+   git clone <repository-url>
+   cd cc-simulator
+   ```
+
+2. Create a virtual environment (optional but recommended):
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   ```
+
+3. Install the required dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+## Usage
+To run the simulation:
+
+1. Start the web server:
+   ```
+   python scripts/serve.py
+   ```
+
+2. Open your web browser and navigate to `http://localhost:8000` to access the simulation interface.
+
+3. Input the desired parameters and start the simulation.
+
+## Testing
+To run the tests, use the following command:
+```
+pytest tests/test_sim.py
+```
+
+## Contributing
+Contributions are welcome! Please submit a pull request or open an issue for any enhancements or bug fixes.
+
+## License
+This project is licensed under the MIT License. See the LICENSE file for more details.
