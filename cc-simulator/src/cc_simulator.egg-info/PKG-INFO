@@ -1,3 +1,16 @@
+Metadata-Version: 2.4
+Name: cc-simulator
+Version: 0.1.0
+Summary: Simple call center simulation with a Flask API and minimal web UI.
+Author-email: Your Name <your.email@example.com>
+License: MIT
+Project-URL: Homepage, https://example.com
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: Flask>=2.3
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"
+
 Симулятор колл‑центра (2D) — серверные расчёты, UI на клиенте
 ================================================================
 

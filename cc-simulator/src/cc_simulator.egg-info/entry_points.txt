@@ -1,0 +1,2 @@
+[console_scripts]
+cc-sim-serve = cc_simulator.app:main

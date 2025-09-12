@@ -1,46 +1,72 @@
-from flask import Flask, request, jsonify
+from __future__ import annotations
+
+from flask import Flask, jsonify, request
+
 from .sim import Simulation
 
-app = Flask(__name__)
-simulation = None
 
-@app.route('/api/start', methods=['POST'])
-def start_simulation():
-    global simulation
-    if simulation is None:
-        simulation = Simulation()
-        simulation.start()
-        return jsonify({"status": "Simulation started"}), 200
-    else:
-        return jsonify({"status": "Simulation is already running"}), 400
+class _SimHolder:
+    sim: Simulation | None = None
 
-@app.route('/api/stop', methods=['POST'])
-def stop_simulation():
-    global simulation
-    if simulation is not None:
-        simulation.stop()
-        simulation = None
-        return jsonify({"status": "Simulation stopped"}), 200
-    else:
-        return jsonify({"status": "No simulation is running"}), 400
 
-@app.route('/api/reset', methods=['POST'])
-def reset_simulation():
-    global simulation
-    if simulation is not None:
-        simulation.reset()
-        return jsonify({"status": "Simulation reset"}), 200
-    else:
-        return jsonify({"status": "No simulation to reset"}), 400
+def _get_sim() -> Simulation:
+    if _SimHolder.sim is None:
+        _SimHolder.sim = Simulation()
+    return _SimHolder.sim
 
-@app.route('/api/results', methods=['GET'])
-def get_results():
-    global simulation
-    if simulation is not None:
-        results = simulation.get_results()
-        return jsonify(results), 200
-    else:
-        return jsonify({"status": "No simulation is running"}), 400
 
-if __name__ == '__main__':
-    app.run(debug=True)
+def _apply_params(sim: Simulation, data: dict) -> None:
+    if not data:
+        return
+    sim.set_params(
+        lambda_rate=float(data.get("lambda", getattr(sim, "lambda_rate", 360))),
+        aht=float(data.get("aht", getattr(sim, "aht", 540))),
+        acw=float(data.get("acw", getattr(sim, "acw", 60))),
+        sla=float(data.get("sla", getattr(sim, "sla", 80))),
+        thr=float(data.get("thr", getattr(sim, "thr", 20))),
+        occ_max=float(data.get("occMax", getattr(sim, "occ_max", 85))),
+        shrink=float(data.get("shrink", getattr(sim, "shrink", 20))),
+        num_agents=int(data.get("N", getattr(sim, "num_agents", 12))),
+    )
+
+
+def register_routes(app: Flask) -> None:
+    @app.get("/api/health")
+    def health():
+        return {"status": "ok"}
+
+    @app.post("/api/start")
+    def start_simulation():
+        sim = _get_sim()
+        data = request.get_json(silent=True) or {}
+        _apply_params(sim, data)
+        sim.reset()
+        return jsonify({"status": "started", "state": sim.get_state()})
+
+    @app.post("/api/stop")
+    def stop_simulation():
+        sim = _get_sim()
+        sim.stop()
+        return jsonify({"status": "stopped", "state": sim.get_state()})
+
+    @app.post("/api/reset")
+    def reset_simulation():
+        sim = _get_sim()
+        data = request.get_json(silent=True) or {}
+        _apply_params(sim, data)
+        sim.reset()
+        return jsonify({"status": "reset", "state": sim.get_state()})
+
+    @app.post("/api/step")
+    def step():
+        sim = _get_sim()
+        payload = request.get_json(silent=True) or {}
+        dt = float(payload.get("dt", 1.0))
+        speed = float(payload.get("speed", 1.0))
+        sim.run_step(dt, speed)
+        return jsonify(sim.get_results())
+
+    @app.get("/api/results")
+    def results():
+        sim = _get_sim()
+        return jsonify(sim.get_results())

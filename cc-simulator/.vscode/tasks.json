@@ -1,0 +1,47 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Install (pip install -e .)",
+      "type": "shell",
+      "command": "pip",
+      "args": ["install", "-e", "."],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test (pytest -q)",
+      "type": "shell",
+      "command": "python",
+      "args": ["-m", "pytest", "-q"],
+  "group": "test",
+  "problemMatcher": []
+    },
+    {
+      "label": "Run: Server (PORT=5001)",
+      "type": "shell",
+      "command": "python",
+      "args": ["scripts/serve.py"],
+      "options": {
+        "env": { "PORT": "5001" }
+      },
+      "isBackground": false,
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Build",
+      "type": "shell",
+      "command": "docker",
+      "args": ["build", "-t", "cc-simulator", "."],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Run (maps :5001)",
+      "type": "shell",
+      "command": "docker",
+      "args": ["run", "--rm", "-p", "5001:5000", "-e", "PORT=5000", "cc-simulator"],
+      "problemMatcher": []
+    }
+  ]
+}
