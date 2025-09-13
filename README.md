@@ -7,4 +7,4 @@
 - `index.html` — редирект на активную версию в папке `latest` 
 
 ## Как открыть
-[Открыть сайт](https://username.github.io/repo-name/)
+[Открыть сайт](https://username.github.io/latest/)
