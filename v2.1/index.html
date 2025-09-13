@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>2D Симулятор колл-центра — история + сводные итоги (v4.6)</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<style>
+  :root{
+    --bg:#0c1117;--panel:#111827;--muted:#334155;--ink:#e5e7eb;--ink2:#94a3b8;
+    --accent:#22c55e;--accent2:#16a34a;--danger:#ef4444;--wait:#f59e0b;--blue:#3b82f6
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{display:flex;flex-direction:column;gap:12px;max-width:1280px;margin:0 auto;padding:16px}
+  h1{font-size:18px;margin:0 0 6px 0;font-weight:600;letter-spacing:.2px}
+  .controls{display:grid;gap:14px;background:var(--panel);padding:12px;border-radius:12px}
+  .inputs{display:grid;gap:16px 24px}
+  @media (min-width:1280px){ .inputs{grid-template-columns:repeat(3, 1fr)} }
+  @media (min-width:900px) and (max-width:1279px){ .inputs{grid-template-columns:repeat(2, 1fr)} }
+  @media (max-width:899px){ .inputs{grid-template-columns:1fr} }
+  .field{display:flex;flex-direction:column;gap:8px;min-height:74px}
+  .label{font-size:12px;color:var(--ink2);line-height:1.2;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .tip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#0f172a;border:1px solid #1e293b;color:#cbd5e1;font-size:11px;cursor:help;user-select:none}
+  .tip:focus-visible{outline:2px solid #2563eb}
+  .tip::after{
+    content: attr(data-tip); position:absolute; left:50%; top:calc(100% + 8px); transform:translateX(-50%);
+    background:#0b1220;border:1px solid #334155;color:#e5e7eb;font-size:12px;line-height:1.35;
+    padding:8px 10px;border-radius:10px;white-space:normal;min-width:220px;max-width:340px;opacity:0;pointer-events:none;transition:opacity .12s;
+  }
+  .tip:hover::after,.tip:focus::after{opacity:1}
+  .controls input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #1f2937;background:#0b1220;color:var(--ink);box-sizing:border-box;min-height:40px}
+  .actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:4px;justify-content:space-between}
+  .leftActions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .rightActions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .btn{cursor:pointer;border:1px solid #1f2937;background:#0b1220;color:#fff;padding:10px 14px;border-radius:14px;text-align:center;user-select:none;min-width:112px}
+  .btn:hover{background:#0e172a}
+  .btn.primary{background:var(--accent);border-color:var(--accent2);color:#052e12;font-weight:700}
+  .btn.stop{background:#7f1d1d;border-color:#991b1b}
+  .btn.ghost{background:transparent;border-color:#334155}
+  .speed{display:flex;gap:10px;flex-wrap:wrap}
+  .speed .chip{padding:8px 12px;border:1px solid #1e3a8a;background:#172554;border-radius:12px;min-width:44px;text-align:center;cursor:pointer;user-select:none;color:#cbd5e1}
+  .speed .chip.active{background:#3b82f6;border-color:#2563eb;color:#021025;font-weight:700}
+  .histArea{display:flex;align-items:center;gap:10px;background:#0b1220;border:1px dashed #334155;border-radius:12px;padding:8px 10px}
+  .histArea input[type="checkbox"]{transform:scale(1.15);margin:0 6px 0 0}
+  .fileWrap{display:flex;align-items:center;gap:8px}
+  .fileBtn{border:1px solid #1e3a8a;background:#0f172a;border-radius:10px;padding:8px 10px;cursor:pointer;color:#cbd5e1;display:inline-flex;align-items:center;gap:8px}
+  .fileBtn:hover{background:#122143}
+  .fileBtn svg{width:16px;height:16px;opacity:.9}
+  .fileName{font-size:12px;color:#94a3b8;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .timer{font-variant-numeric:tabular-nums; padding:8px 10px;border:1px solid #334155;border-radius:10px;background:#0b1220;color:#cbd5e1;min-width:150px;text-align:center}
+  .timer .muted{color:#94a3b8;margin-left:6px}
+  .stage{background:var(--panel);border-radius:14px;padding:10px;position:relative;overflow:hidden}
+  .legend{position:absolute;right:10px;top:10px;font-size:12px;color:#cbd5e1;display:flex;gap:14px;pointer-events:none}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .q{background:var(--danger)} .s{background:var(--blue)} .a{background:var(--wait)}
+  svg{width:100%;height:440px;border-radius:10px;display:block;background:#0b1220}
+  .title{position:absolute;left:14px;top:10px;font-size:13px;color:#cbd5e1}
+  .tableBox{display:none;background:var(--panel);border-radius:12px;padding:10px}
+  .tableBar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .tableBar .left{display:flex;gap:8px;align-items:center}
+  .tableBar .right{display:flex;gap:8px;align-items:center}
+  .small{font-size:12px;color:#94a3b8}
+  table{width:100%;border-collapse:separate;border-spacing:0;background:#0b1220;border-radius:10px;overflow:hidden}
+  thead th{position:sticky;top:0;background:#0f172a;color:#cbd5e1;font-weight:600;font-size:12px;padding:8px;border-bottom:1px solid #1f2937;white-space:nowrap}
+  tbody td{padding:8px;border-bottom:1px solid #1f2937;color:#e5e7eb;font-variant-numeric:tabular-nums}
+  tbody tr:nth-child(odd){background:#0b1220}
+  tbody tr:nth-child(even){background:#0c1424}
+  .scrollWrap{max-height:420px;overflow:auto;border:1px solid #1f2937;border-radius:10px}
+  .pill{border:1px solid #334155;border-radius:10px;padding:6px 10px;cursor:pointer;background:#0b1220;color:#e5e7eb}
+  .pill:hover{background:#0e172a}
+  .sumWrap{margin-top:14px;display:grid;gap:12px}
+  .sumCard{background:#0f172a;border:1px solid #1f2937;border-radius:10px;padding:10px}
+  .sumBar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .sumBar .title{position:static;font-size:14px}
+  .btnTiny{border:1px solid #334155;background:#0b1220;color:#e5e7eb;border-radius:8px;padding:6px 10px;cursor:pointer}
+  .btnTiny:hover{background:#0e172a}
+  @media (max-width: 640px){
+    .actions{gap:10px}.rightActions{width:100%;justify-content:flex-start}
+    .timer{min-width:120px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>2D Симулятор колл-центра — история + сводные итоги</h1>
+  <div class="controls">
+    <div class="inputs">
+      <div class="field">
+        <div class="label">Среднее число входящих за час (λ)
+          <span class="tip" tabindex="0" data-tip="Средняя интенсивность входящих за сим-час. При включённой «Истории» игнорируется.">?</span>
+        </div>
+        <input type="number" id="inpLambda" value="360" min="0" step="1">
+      </div>
+      <div class="field">
+        <div class="label">AHT, сек — длительность разговора
+          <span class="tip" tabindex="0" data-tip="Средняя длительность разговора без пост-обработки. Используется экспоненциальное распределение.">?</span>
+        </div>
+        <input type="number" id="inpAHT" value="540" min="1" step="1">
+      </div>
+      <div class="field">
+        <div class="label">ACW, сек — пост-обработка
+          <span class="tip" tabindex="0" data-tip="Среднее время пост-обработки после разговора, до освобождения агента.">?</span>
+        </div>
+        <input type="number" id="inpACW" value="60" min="0" step="1">
+      </div>
+      <div class="field">
+        <div class="label">SLA (≤T), %
+          <span class="tip" tabindex="0" data-tip="Доля вызовов, взятых в работу за T секунд (целевое значение).">?</span>
+        </div>
+        <input type="number" id="inpSLA" value="80" min="1" max="100" step="1">
+      </div>
+      <div class="field">
+        <div class="label">Порог ожидания T, сек
+          <span class="tip" tabindex="0" data-tip="Граница SLA для времени ожидания в очереди.">?</span>
+        </div>
+        <input type="number" id="inpThresh" value="20" min="0" step="1">
+      </div>
+      <div class="field">
+        <div class="label">Лимит занятости, %
+          <span class="tip" tabindex="0" data-tip="Максимально допустимая средняя занятость агентов (occupancy).">?</span>
+        </div>
+        <input type="number" id="inpOccMax" value="85" min="10" max="100" step="1">
+      </div>
+      <div class="field">
+        <div class="label">Шринкаж, %
+          <span class="tip" tabindex="0" data-tip="Доля от штатной численности, недоступная из-за отпусков/перерывов/обучения.">?</span>
+        </div>
+        <input type="number" id="inpShrink" value="20" min="0" max="90" step="1">
+      </div>
+      <div class="field">
+        <div class="label">Штат (N), чел
+          <span class="tip" tabindex="0" data-tip="Общая численность операторов в смене. Активные = N × (1 − шринкаж).">?</span>
+        </div>
+        <input type="number" id="inpN" value="12" min="0" step="1">
+      </div>
+    </div>
+    <div class="actions">
+      <div class="leftActions">
+        <div class="btn primary" id="btnStart">Запустить ▶</div>
+        <div class="btn stop" id="btnStop">Остановить ■</div>
+        <div class="btn ghost" id="btnReset">Сброс</div>
+        <div class="timer" id="simTimer">Сим-время: 00:00:00 <span class="muted">(x1)</span></div>
+      </div>
+      <div class="rightActions">
+        <div class="speed" id="speed">
+          <div class="chip active" data-speed="1">x1</div>
+          <div class="chip" data-speed="2">x2</div>
+          <div class="chip" data-speed="4">x4</div>
+          <div class="chip" data-speed="8">x8</div>
+        </div>
+        <div class="histArea">
+          <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="useHist"/><span>Использовать историю</span></label>
+          <div class="fileWrap">
+            <input type="file" id="histFile" accept=".xlsx,.xls" style="display:none"/>
+            <label for="histFile" class="fileBtn" id="fileBtn">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm0 2.5L18.5 9H14z"/><path d="M8 13h8v2H8zm0 4h8v2H8zm0-8h4v2H8z"/></svg>
+              Загрузить Excel
+            </label>
+            <span class="fileName" id="fileName">файл не выбран</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="small">1 сим-час = 1 реальная минута. Ускорение x2/x4/x8 влияет на весь процесс.</div>
+  </div>
+
+  <div class="stage">
+    <div class="title">Визуал области симуляции</div>
+    <div class="legend"><span><i class="dot q"></i>Очередь</span><span><i class="dot s"></i>Разговор</span><span><i class="dot a"></i>Пост-обработка</span></div>
+    <svg id="sim" viewBox="0 0 1280 440" preserveAspectRatio="xMidYMid meet">
+      <g id="gSource"><circle cx="80" cy="220" r="44" fill="none" stroke="#22c55e" stroke-width="4"/><text x="80" y="225" text-anchor="middle" fill="#e2e8f0" font-size="14">вход</text><text id="txtLambda" x="80" y="250" text-anchor="middle" fill="#94a3b8" font-size="12">λ=360/ч</text></g>
+      <g id="gQueue"><rect x="150" y="40" width="300" height="360" rx="8" fill="#121b26" stroke="#245" stroke-width="3"/><text id="labelQueue" x="160" y="34" fill="#cbd5e1" font-size="14">В очереди: 0</text></g>
+      <g id="gService"><rect x="480" y="40" width="420" height="360" rx="8" fill="#0f2314" stroke="#256a3f" stroke-width="3"/><text id="labelService" x="490" y="34" fill="#cbd5e1" font-size="14">В работе: 0 / 0</text></g>
+      <g id="gACW"><rect x="930" y="40" width="280" height="360" rx="8" fill="#221a0a" stroke="#a16207" stroke-width="3"/><text id="labelACW" x="940" y="34" fill="#cbd5e1" font-size="14">Пост-обработка: 0</text></g>
+      <g id="gDone"><circle cx="1240" cy="220" r="44" fill="none" stroke="#22c55e" stroke-width="4"/><text x="1240" y="218" text-anchor="middle" fill="#e2e8f0" font-size="14">готово</text><text id="txtDoneNum" x="1240" y="246" text-anchor="middle" fill="#94a3b8" font-size="12">0</text></g>
+    </svg>
+  </div>
+
+  <div class="tableBox" id="tableBox">
+    <div class="tableBar"><div class="left"><strong>Таблица метрик по минутам</strong><span class="small" id="rowsCount"></span></div><div class="right"><button class="pill" id="btnCsv">Экспорт CSV</button><button class="pill" id="btnXlsx">Экспорт XLSX</button></div></div>
+    <div class="scrollWrap">
+      <table id="tbl">
+        <thead><tr><th>Время (сим.)</th><th>Пришло</th><th>В очереди</th><th>В разговоре</th><th>В пост-обработке</th><th>Отвечено</th><th>Отвечено ≤T</th><th>Завершено</th><th>ASA, мин</th><th>Средний AHT, мин</th><th>Среднее ожид., мин</th><th>Уровень сервиса, %</th><th>Активные сотрудники</th><th>Занятость, %</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="sumWrap">
+      <div class="sumCard" id="sumHourCard">
+        <div class="sumBar"><div class="title">Почасовые итоги</div><div class="right"><button class="btnTiny" id="btnHourCsv">CSV</button><button class="btnTiny" id="btnHourXlsx">XLSX</button></div></div>
+        <div class="scrollWrap" style="max-height:260px">
+          <table id="tblHour">
+            <thead><tr><th>Час</th><th>Пришло</th><th>Отвечено</th><th>Отвечено ≤T</th><th>SLA, %</th><th>ASA, мин</th><th>Средний AHT, мин</th><th>Среднее ожид., мин</th><th>Max очередь</th><th>Активные ср., чел</th><th>Занятость ср., %</th><th>Требуется активных, чел</th><th>Нехватка/избыток, чел</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sumCard" id="sumDayCard">
+        <div class="sumBar"><div class="title">Сводка за период</div><div class="right"><button class="btnTiny" id="btnDayCsv">CSV</button><button class="btnTiny" id="btnDayXlsx">XLSX</button></div></div>
+        <div class="scrollWrap" style="max-height:220px">
+          <table id="tblDay">
+            <thead><tr><th>Минут в симуляции</th><th>Всего пришло</th><th>Всего отвечено</th><th>Всего завершено</th><th>SLA средн., %</th><th>ASA средн., мин</th><th>AHT средн., мин</th><th>Средняя занятость, %</th><th>Активные (средн.), чел</th><th>Требуемые акт. ч/ч</th><th>Факт акт. ч/ч</th><th>Дефицит (+) / избыток (–) ч/ч</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="small" style="margin-top:6px">ASA/ожидание — по начавшим обслуживание в интервале. «Требуется активных» — Erlang C с ограничением загруженности; шринкаж уже учтён в фактах активных.</div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(function(){
+  const $ = s=>document.querySelector(s);
+  const svgns="http://www.w3.org/2000/svg";
+  const rndExp=m=>-m*Math.log(1-Math.random());
+  const clamp=(v,mi,ma)=>Math.max(mi,Math.min(ma,v));
+  const pad2=n=>String(n).padStart(2,'0');
+  const fmtHMS=secs=>{secs=Math.max(0,Math.floor(secs));const h=Math.floor(secs/3600),m=Math.floor((secs%3600)/60),s=secs%60;return pad2(h)+':'+pad2(m)+':'+pad2(s)};
+  const fmtHM=secs=>{const h=Math.floor(secs/3600),m=Math.floor((secs%3600)/60);return pad2(h)+':'+pad2(m)};
+  const fmtH=secs=>{const h=Math.floor(secs/3600);return pad2(h)+':00'};
+
+  // --- sim controls
+  let running=false, speedMul=1;
+  const baseScale=60;            // 1 реальная секунда = 60 сим-секунд (1 мин реального = 1 ч симуляции)
+  const fixedHz=30, fixedRealDt=1/fixedHz; // фиксированный физический тик
+  let acc=0, lastTs=0;
+
+  // --- sim state
+  let simT=0, nextArrival=0;     // сим-время (сек), расписание Poisson
+  const dots=new Set(); let idSeq=1;
+  let params={lambda:360,aht:540,acw:60,sla:80,thr:20,occMax:85,shrink:20,N:12};
+  let staff=[], NActive=0;
+  let doneCount=0;
+
+  // queue grid
+  const areas={queue:{x:150,y:40,w:300,h:360,color:'#ef4444'},
+               service:{x:480,y:40,w:420,h:360,color:'#3b82f6'},
+               acw:{x:930,y:40,w:280,h:360,color:'#f59e0b'}};
+  const queueSlots=[]; let qCols=0,qRows=0,qCell=16; // размер ячейки решётки очереди
+
+  // logging
+  let logEvery=60, nextLogAt=logEvery;
+  const logs={t:[],arrivals:[],q:[],talk:[],acw:[],answered:[],answeredInT:[],completed:[],staffActive:[],occ:[],asaMin:[],ahtMin:[],waitMin:[]};
+  const tmpMinute={finishedDur:[],waitDur:[],busyAgentsTime:0,activeAgentsTime:0,arrivals:0,answered:0,answeredInT:0,completed:0};
+
+  // dom
+  const svg=$('#sim'), gService=$('#gService'),
+        labelQueue=$('#labelQueue'), labelService=$('#labelService'), labelACW=$('#labelACW'),
+        txtLambda=$('#txtLambda'), txtDoneNum=$('#txtDoneNum'), simTimer=$('#simTimer');
+
+  // history arrivals
+  let useHistory=false, histLoaded=false, histArrivals=[], histDuration=0;
+
+  function buildQueueGrid(){
+    qCell=16; // px
+    qCols=Math.floor((areas.queue.w-20)/qCell);
+    qRows=Math.floor((areas.queue.h-20)/qCell);
+    queueSlots.length=qCols*qRows;
+    queueSlots.fill(null);
+  }
+  function slotCoord(idx){
+    const c=idx%qCols, r=Math.floor(idx/qCols);
+    return {x:areas.queue.x+10+c*qCell+qCell*0.5, y:areas.queue.y+10+r*qCell+qCell*0.5};
+  }
+  function nextFreeSlot(){
+    for(let i=0;i<queueSlots.length;i++) if(!queueSlots[i]) return i;
+    return null;
+  }
+
+  function buildStaff(){
+    Array.from(gService.querySelectorAll('.agent')).forEach(n=>n.remove());
+    staff.length=0;
+    const N=params.N|0;
+    const cols=Math.min(8,Math.max(3,Math.ceil(Math.sqrt(Math.max(1,N))))), rows=Math.ceil(Math.max(1,N)/cols);
+    const pad=12, cellW=(areas.service.w-pad*2)/cols, cellH=(areas.service.h-pad*2)/rows;
+    for(let i=0;i<N;i++){
+      const c=i%cols,r=Math.floor(i/cols),
+            x=areas.service.x+pad+c*cellW+cellW*.5, y=areas.service.y+pad+r*cellH+cellH*.5;
+      const g=document.createElementNS(svgns,'g'); g.classList.add('agent');
+      const circle=document.createElementNS(svgns,'circle'); circle.setAttribute('cx',x); circle.setAttribute('cy',y); circle.setAttribute('r',14);
+      circle.setAttribute('fill','#0b1220'); circle.setAttribute('stroke','#16a34a'); circle.setAttribute('stroke-width','2');
+      g.appendChild(circle); gService.appendChild(g);
+      staff.push({id:i+1,state:'idle',el:g,x,y,busyUntil:0,acwUntil:0});
+    }
+    NActive=Math.max(0,Math.round(N*(1-params.shrink/100)));
+    staff.forEach((ag,i)=>{ if(i<NActive){ag.state='idle';ag.el.style.opacity=1}else{ag.state='break';ag.el.style.opacity=.25} });
+    updateServiceLabel();
+  }
+  function updateServiceLabel(){ const busy=staff.filter(s=>s.state==='busy').length; labelService.textContent=`В работе: ${busy} / ${params.N} (активно: ${NActive})` }
+  function setParamsFromInputs(){
+    params.lambda=+$('#inpLambda').value;
+    params.aht=clamp(+$('#inpAHT').value,1,7200);
+    params.acw=clamp(+$('#inpACW').value,0,3600);
+    params.sla=clamp(+$('#inpSLA').value,1,100);
+    params.thr=clamp(+$('#inpThresh').value,0,600);
+    params.occMax=clamp(+$('#inpOccMax').value,1,100);
+    params.shrink=clamp(+$('#inpShrink').value,0,90);
+    params.N=Math.max(0,+$('#inpN').value|0);
+    txtLambda.textContent=`λ=${params.lambda}/ч`;
+    buildStaff();
+  }
+
+  function mkDot(x,y,color){ const c=document.createElementNS(svgns,'circle'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',5); c.setAttribute('fill',color); svg.appendChild(c); return c }
+
+  function spawnToQueue(){
+    const sx=80, sy=220;
+    const idx=nextFreeSlot();
+    if(idx!=null) queueSlots[idx] = 'RES'; // reserve slot immediately
+    const target = idx!=null ? slotCoord(idx) : {x:areas.queue.x+areas.queue.w-15, y:areas.queue.y+areas.queue.h-15};
+    const el=mkDot(sx,sy,areas.queue.color);
+    const o={id:idSeq++,el,state:'toQueue',x:sx,y:sy,target,createdAt:simT,enterQueueAt:0,enterServiceAt:0,leaveServiceAt:0,enterACWAt:0,qSlot:idx};
+    dots.add(o); tmpMinute.arrivals++;
+  }
+
+  function tryAssign(){
+    const waiting=[...dots].filter(d=>d.state==='inQueue').sort((a,b)=>a.enterQueueAt-b.enterQueueAt)[0];
+    if(!waiting) return false;
+    const agent=staff.find(a=>a.state==='idle');
+    if(!agent) return false;
+    waiting.state='toService';
+    waiting.target={x:agent.x, y:agent.y};
+    waiting.el.setAttribute('fill',areas.service.color);
+    waiting.assigned=agent;
+    agent.state='busy';
+    agent.busyUntil=simT+Math.max(1,rndExp(params.aht));
+    if(waiting.qSlot!=null){ queueSlots[waiting.qSlot]=null; waiting.qSlot=null; }
+    updateServiceLabel();
+    return true;
+  }
+
+  function minuteLog(){
+    logs.t.push(simT);
+    const q=[...dots].filter(d=>d.state==='inQueue').length,
+          talk=staff.filter(a=>a.state==='busy').length,
+          acw=[...dots].filter(d=>d.state==='inACW'||d.state==='toACW').length;
+    logs.arrivals.push(tmpMinute.arrivals); logs.q.push(q); logs.talk.push(talk); logs.acw.push(acw);
+    logs.answered.push(tmpMinute.answered); logs.answeredInT.push(tmpMinute.answeredInT); logs.completed.push(tmpMinute.completed);
+    logs.staffActive.push(NActive);
+    const occ=tmpMinute.activeAgentsTime>0?(tmpMinute.busyAgentsTime/tmpMinute.activeAgentsTime):0; logs.occ.push(occ);
+    const asa=tmpMinute.answered?(tmpMinute.waitDur.reduce((a,b)=>a+b,0)/tmpMinute.answered)/60:0; logs.asaMin.push(asa);
+    const aht=tmpMinute.finishedDur.length?(tmpMinute.finishedDur.reduce((a,b)=>a+b,0)/tmpMinute.finishedDur.length)/60:(params.aht/60); logs.ahtMin.push(aht);
+    const wait=tmpMinute.waitDur.length?(tmpMinute.waitDur.reduce((a,b)=>a+b,0)/tmpMinute.waitDur.length)/60:0; logs.waitMin.push(wait);
+    tmpMinute.finishedDur.length=0; tmpMinute.waitDur.length=0;
+    tmpMinute.busyAgentsTime=0; tmpMinute.activeAgentsTime=0;
+    tmpMinute.arrivals=0; tmpMinute.answered=0; tmpMinute.answeredInT=0; tmpMinute.completed=0;
+  }
+
+  function updateCounters(){
+    labelQueue.textContent=`В очереди: ${[...dots].filter(d=>d.state==='inQueue').length}`;
+    labelACW.textContent=`Пост-обработка: ${[...dots].filter(d=>d.state==='inACW'||d.state==='toACW').length}`;
+    updateServiceLabel();
+    txtDoneNum.textContent=String(doneCount);
+    simTimer.innerHTML=`Сим-время: ${fmtHMS(simT)} <span class="muted">(x${speedMul})</span>`;
+  }
+
+  function scheduleArrivals(tEnd){
+    if(useHistory && histLoaded){
+      while(histArrivals.length && histArrivals[0]<=tEnd){ spawnToQueue(); histArrivals.shift() }
+    }else{
+      const ratePerSec=params.lambda/3600;
+      while(nextArrival<=tEnd){
+        spawnToQueue();
+        nextArrival=(nextArrival||simT)+Math.max(1,rndExp(1/ratePerSec));
+      }
+    }
+  }
+
+  function step(realDt){
+    if(!running) return;
+    const simDt=realDt*baseScale*speedMul;
+    const tEnd=simT+simDt;
+    scheduleArrivals(tEnd);
+
+    const moveSpeed=120;
+    dots.forEach(d=>{
+      if(d.state==='toQueue'||d.state==='toService'||d.state==='toACW'){
+        const dx=d.target.x-d.x, dy=d.target.y-d.y, dist=Math.hypot(dx,dy);
+        const stepLen=Math.min(dist,moveSpeed*realDt*2);
+        if(dist<=0.5){
+          if(d.state==='toQueue'){ d.state='inQueue'; d.enterQueueAt=simT; if(d.qSlot!=null) queueSlots[d.qSlot]=d; }
+          else if(d.state==='toService'){ d.state='inService'; d.enterServiceAt=simT; const wt=d.enterServiceAt-d.enterQueueAt; tmpMinute.waitDur.push(wt); tmpMinute.answered++; if(wt<=params.thr) tmpMinute.answeredInT++ }
+          else if(d.state==='toACW'){ d.state='inACW'; d.enterACWAt=simT }
+          d.x=d.target.x; d.y=d.target.y;
+        }else{
+          d.x+=(dx/dist)*stepLen; d.y+=(dy/dist)*stepLen;
+        }
+        d.el.setAttribute('cx',d.x); d.el.setAttribute('cy',d.y);
+      }
+    });
+
+    staff.forEach(ag=>{
+      if(ag.state==='busy'){
+        tmpMinute.busyAgentsTime+=Math.min(simDt,Math.max(0,ag.busyUntil-simT));
+        if(simT+simDt>=ag.busyUntil){
+          const d=[...dots].find(o=>o.assigned===ag&&o.state==='inService');
+          if(d){
+            d.state='toACW'; d.el.setAttribute('fill',areas.acw.color);
+            d.target={x:areas.acw.x+10+Math.random()*(areas.acw.w-20), y:areas.acw.y+10+Math.random()*(areas.acw.h-20)};
+            d.leaveServiceAt=ag.busyUntil; tmpMinute.finishedDur.push(d.leaveServiceAt-d.enterServiceAt);
+          }
+          ag.state='acw'; ag.acwUntil=ag.busyUntil+Math.max(1,rndExp(params.acw||1));
+        }
+      }else if(ag.state==='acw'){
+        if(simT+simDt>=ag.acwUntil){
+          const d=[...dots].find(o=>o.assigned===ag&&(o.state==='inACW'||o.state==='toACW'));
+          if(d){ d.el.remove(); dots.delete(d); doneCount++; tmpMinute.completed++ }
+          ag.state='idle';
+        }
+      }
+      if(ag.state!=='break'){ tmpMinute.activeAgentsTime+=simDt }
+    });
+
+    while(tryAssign()) {}
+
+    if(tEnd>=nextLogAt){ minuteLog(); nextLogAt+=logEvery }
+    simT=tEnd;
+    updateCounters();
+  }
+
+  function loop(ts){
+    if(!lastTs) lastTs=ts;
+    let delta=(ts-lastTs)/1000; if(delta>0.25) delta=0.25;
+    lastTs=ts; acc+=delta;
+    while(acc>=fixedRealDt){ step(fixedRealDt); acc-=fixedRealDt }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  ['#inpLambda','#inpAHT','#inpACW','#inpSLA','#inpThresh','#inpOccMax','#inpShrink','#inpN'].forEach(id=>{
+    $(id).addEventListener('change',()=>{ if(!running) setParamsFromInputs() });
+  });
+  $('#speed').addEventListener('click',e=>{
+    const btn=e.target.closest('.chip'); if(!btn) return;
+    $('#speed').querySelectorAll('.chip').forEach(n=>n.classList.remove('active'));
+    btn.classList.add('active'); speedMul=+btn.dataset.speed; updateCounters();
+  });
+  $('#btnStart').addEventListener('click',()=>{
+    if(running) return;
+    if($('#useHist').checked&&!histLoaded){
+      alert('Включен режим "Использовать историю", но файл не загружен. Загрузите Excel или отключите галочку.');
+      return;
+    }
+    Object.values(logs).forEach(a=>Array.isArray(a)&&a.splice(0,a.length));
+    Object.assign(tmpMinute,{finishedDur:[],waitDur:[],busyAgentsTime:0,activeAgentsTime:0,arrivals:0,answered:0,answeredInT:0,completed:0});
+    nextLogAt=logEvery;
+    dots.forEach(d=>d.el.remove()); dots.clear();
+    buildQueueGrid();
+    doneCount=0; simT=0; acc=0; lastTs=0; nextArrival=0;
+    useHistory=$('#useHist').checked;
+    if(useHistory&&histLoaded){ histArrivals=(window._histAllArrivals||[]).slice() }
+    $('#tableBox').style.display='none';
+    running=true; updateCounters();
+  });
+  $('#btnStop').addEventListener('click',()=>{
+    if(!running) return;
+    running=false; buildTables(); $('#tableBox').style.display='block';
+  });
+  $('#btnReset').addEventListener('click',()=>{
+    running=false;
+    dots.forEach(d=>d.el.remove()); dots.clear();
+    doneCount=0; simT=0; acc=0; lastTs=0; nextArrival=0;
+    Object.values(logs).forEach(a=>Array.isArray(a)&&a.splice(0,a.length));
+    $('#tableBox').style.display='none'; updateCounters();
+  });
+
+  $('#histFile').addEventListener('change', async e=>{
+    const f=e.target.files[0];
+    if(!f){ $('#fileName').textContent='файл не выбран'; histLoaded=false; return }
+    $('#fileName').textContent=f.name;
+    const buf=await f.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:null,raw:true});
+    const parsed=parseHistoryRows(rows);
+    if(parsed.events.length){
+      window._histAllArrivals=parsed.events.slice();
+      histArrivals=parsed.events.slice();
+      histDuration=parsed.duration; histLoaded=true;
+      alert('История загружена: интервалов '+parsed.intervals+', звонков '+parsed.events.length+'.');
+    }else{ histLoaded=false; alert('Не удалось распознать файл. Требуются колонки времени и количества звонков.') }
+  });
+
+  function excelDateToSeconds(v){ const day=Math.floor(v), frac=v-day; return Math.round(frac*86400) }
+  function parseTimeLike(v){
+    if(v==null) return null;
+    if(typeof v==='number') return excelDateToSeconds(v);
+    const s=String(v).trim();
+    const m=s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if(m){ const h=+m[1],mi=+m[2],se=m[3]?+m[3]:0; return h*3600+mi*60+se }
+    return null;
+  }
+  function parseHistoryRows(rows){
+    if(!rows||!rows.length) return {events:[],duration:0,intervals:0};
+    const nameMap={}; Object.keys(rows[0]).forEach(k=>nameMap[String(k).toLowerCase()]=k);
+    const pick=list=>{ for(const cand of list){ if(nameMap[cand]) return nameMap[cand] } return null };
+    const colStart=pick(['start','начало','время','time']),
+          colEnd=pick(['end','конец','до','until','finish']),
+          colCalls=pick(['calls','звонки','входящие','count','кол-во','количество']),
+          colDur=pick(['interval','интервал','длительность','duration','минут','minutes']);
+    if(!colCalls||!colStart) return {events:[],duration:0,intervals:0};
+    const events=[]; let intervals=0,lastStart=0;
+    for(let i=0;i<rows.length;i++){
+      const r=rows[i]; const tStart=parseTimeLike(r[colStart]); if(tStart==null) continue; let tEnd=null;
+      if(colEnd&&r[colEnd]!=null) tEnd=parseTimeLike(r[colEnd]);
+      if(tEnd==null&&colDur&&r[colDur]!=null){ const durSec=Number(r[colDur])*60; if(!isNaN(durSec)) tEnd=tStart+durSec }
+      if(tEnd==null&&i+1<rows.length){ const nx=rows[i+1]; const tNext=parseTimeLike(nx[colStart]); if(tNext!=null) tEnd=tNext }
+      if(tEnd==null) tEnd=tStart+3600;
+      const calls=Math.max(0,Number(r[colCalls])|0); intervals++;
+      if(calls>0){
+        const len=Math.max(1,tEnd-tStart); const arr=[];
+        for(let k=0;k<calls;k++){ const u=Math.random(); arr.push(tStart+Math.floor(u*len)) }
+        arr.sort((a,b)=>a-b); events.push(...arr);
+      }
+      lastStart=tStart;
+    }
+    return {events, duration:lastStart, intervals};
+  }
+
+  setParamsFromInputs(); buildQueueGrid(); buildStaff(); updateCounters();
+
+  function buildTables(){ buildMinuteTable(); buildHourAndDayTables() }
+  function buildMinuteTable(){
+    const tbody=$('#tbl tbody'); tbody.innerHTML=''; const rows=[];
+    for(let i=0;i<logs.t.length;i++){
+      const time=fmtHM(logs.t[i]),arr=logs.arrivals[i]||0,q=logs.q[i]||0,talk=logs.talk[i]||0,acw=logs.acw[i]||0,ans=logs.answered[i]||0,ansT=logs.answeredInT[i]||0,comp=logs.completed[i]||0,asa=logs.asaMin[i]||0,aht=logs.ahtMin[i]||0,wait=logs.waitMin[i]||0,sla=ans?(ansT/ans*100):0,staffAct=logs.staffActive[i]||0,occPct=(logs.occ[i]||0)*100;
+      const row=[time,arr,q,talk,acw,ans,ansT,comp,asa.toFixed(2),aht.toFixed(2),wait.toFixed(2),sla.toFixed(1),staffAct,occPct.toFixed(1)];
+      rows.push(row);
+      const tr=document.createElement('tr'); row.forEach(v=>{ const td=document.createElement('td'); td.textContent=v; tr.appendChild(td) }); tbody.appendChild(tr);
+    }
+    $('#rowsCount').textContent=`Строк: ${rows.length}`;
+    $('#btnCsv').onclick=()=>{ const csv=toCSV([['Время (сим.)','Пришло','В очереди','В разговоре','В пост-обработке','Отвечено','Отвечено ≤T','Завершено','ASA, мин','Средний AHT, мин','Среднее ожид., мин','Уровень сервиса, %','Активные сотрудники','Занятость, %'],...rows]); downloadBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),"cc-sim-metrics-minute.csv") };
+    $('#btnXlsx').onclick=()=>{ const header=['Время (сим.)','Пришло','В очереди','В разговоре','В пост-обработке','Отвечено','Отвечено ≤T','Завершено','ASA, мин','Средний AHT, мин','Среднее ожид., мин','Уровень сервиса, %','Активные сотрудники','Занятость, %']; const ws=XLSX.utils.aoa_to_sheet([header,...rows]); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Minute"); const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'}); downloadBlob(new Blob([wbout],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),"cc-sim-metrics-minute.xlsx") };
+  }
+
+  function erlangC(a,N){ if(N<=a) return 1.0; let sum=0,term=1; for(let k=1;k<=N;k++){ term*=a/k; sum+=term } const pn=term*(N/(N-a)); return pn/(sum+pn-term) }
+  function slaFrom(a,N,T,AHT){ if(N<=a) return 0; const Pw=erlangC(a,N), mu=(N-a); return 1 - Pw*Math.exp(-mu*T/AHT) }
+  function requiredAgents(lambdaPerHour,AHTsec,Tsec,targetSLA,occMax){ const a=lambdaPerHour*(AHTsec/3600); let N=Math.max(1,Math.ceil(a)); const occLimit=occMax/100; while(true){ const occ=a/N, sla=slaFrom(a,N,Tsec,AHTsec); if(occ<=occLimit && sla>=targetSLA/100) return N; N++; if(N>5000) return N } }
+
+  function buildHourAndDayTables(){
+    const hourMap=new Map();
+    for(let i=0;i<logs.t.length;i++){
+      const h=Math.floor((logs.t[i]||0)/3600);
+      if(!hourMap.has(h)) hourMap.set(h,{arr:0,ans:0,ansT:0,comp:0,asa:[],aht:[],wait:[],occ:[],staff:[],maxQ:0});
+      const o=hourMap.get(h);
+      o.arr+=(logs.arrivals[i]||0); o.ans+=(logs.answered[i]||0); o.ansT+=(logs.answeredInT[i]||0); o.comp+=(logs.completed[i]||0);
+      o.asa.push(logs.asaMin[i]||0); o.aht.push(logs.ahtMin[i]||0); o.wait.push(logs.waitMin[i]||0);
+      o.occ.push(logs.occ[i]||0); o.staff.push(logs.staffActive[i]||0); o.maxQ=Math.max(o.maxQ, logs.q[i]||0);
+    }
+    const hours=[...hourMap.keys()].sort((a,b)=>a-b), rowsH=[]; const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0; let reqH=0, actH=0;
+    hours.forEach(h=>{
+      const o=hourMap.get(h);
+      const sla=o.ans?(o.ansT/o.ans*100):0, asa=avg(o.asa), aht=avg(o.aht), wait=avg(o.wait), occ=avg(o.occ)*100, staffAvg=avg(o.staff);
+      const Nreq=requiredAgents(o.arr, params.aht, params.thr, params.sla, params.occMax), delta=Math.round(Nreq - staffAvg);
+      rowsH.push([fmtH(h*3600), o.arr, o.ans, o.ansT, sla.toFixed(1), asa.toFixed(2), aht.toFixed(2), wait.toFixed(2), o.maxQ, staffAvg.toFixed(1), occ.toFixed(1), Nreq, delta]);
+      reqH+=Nreq; actH+=staffAvg;
+    });
+    const tbodyH=$('#tblHour tbody'); tbodyH.innerHTML=''; rowsH.forEach(r=>{ const tr=document.createElement('tr'); r.forEach(v=>{ const td=document.createElement('td'); td.textContent=v; tr.appendChild(td) }); tbodyH.appendChild(tr) });
+    const mins=logs.t.length, sum=a=>a.reduce((x,y)=>x+(+y||0),0), avgAll=a=>a.length?sum(a)/a.length:0;
+    const totalArr=sum(logs.arrivals), totalAns=sum(logs.answered), totalComp=sum(logs.completed), totalAnsT=sum(logs.answeredInT);
+    const slaDay=totalAns?(totalAnsT/totalAns*100):0, asaDay=avgAll(logs.asaMin), ahtDay=avgAll(logs.ahtMin), occDay=avgAll(logs.occ)*100, staffDay=avgAll(logs.staffActive);
+    const deficitHH=Math.round(reqH - actH);
+    const rowD=[mins, totalArr, totalAns, totalComp, slaDay.toFixed(1), asaDay.toFixed(2), ahtDay.toFixed(2), occDay.toFixed(1), staffDay.toFixed(1), Math.round(reqH), Math.round(actH), deficitHH];
+    const tbodyD=$('#tblDay tbody'); tbodyD.innerHTML=''; const trD=document.createElement('tr'); rowD.forEach(v=>{ const td=document.createElement('td'); td.textContent=v; trD.appendChild(td) }); tbodyD.appendChild(trD);
+    $('#btnHourCsv').onclick=()=>{ const csv=toCSV([['Час','Пришло','Отвечено','Отвечено ≤T','SLA, %','ASA, мин','Средний AHT, мин','Среднее ожид., мин','Max очередь','Активные ср., чел','Занятость ср., %','Требуется активных, чел','Нехватка/избыток, чел'],...rowsH]); downloadBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),"cc-sim-metrics-hourly.csv") };
+    $('#btnHourXlsx').onclick=()=>{ const header=['Час','Пришло','Отвечено','Отвечено ≤T','SLA, %','ASA, мин','Средний AHT, мин','Среднее ожид., мин','Max очередь','Активные ср., чел','Занятость ср., %','Требуется активных, чел','Нехватка/избыток, чел']; const ws=XLSX.utils.aoa_to_sheet([header,...rowsH]); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Hourly"); const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'}); downloadBlob(new Blob([wbout],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),"cc-sim-metrics-hourly.xlsx") };
+    $('#btnDayCsv').onclick=()=>{ const csv=toCSV([['Минут в симуляции','Всего пришло','Всего отвечено','Всего завершено','SLA средн., %','ASA средн., мин','AHT средн., мин','Средняя занятость, %','Активные (средн.), чел','Требуемые акт. ч/ч','Факт акт. ч/ч','Дефицит (+) / избыток (–) ч/ч'],rowD]); downloadBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),"cc-sim-metrics-day.csv") };
+    $('#btnDayXlsx').onclick=()=>{ const header=['Минут в симуляции','Всего пришло','Всего отвечено','Всего завершено','SLA средн., %','ASA средн., мин','AHT средн., мин','Средняя занятость, %','Активные (средн.), чел','Требуемые акт. ч/ч','Факт акт. ч/ч','Дефицит (+) / избыток (–) ч/ч']; const ws=XLSX.utils.aoa_to_sheet([header,rowD]); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Summary"); const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'}); downloadBlob(new Blob([wbout],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),"cc-sim-metrics-day.xlsx") };
+  }
+
+  function toCSV(rows){ return rows.map(r=>r.map(x=>{ const s=String(x??""); return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s }).join(";")).join("\n") }
+  function downloadBlob(blob, filename){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove() },0) }
+
+})();
+</script>
+</body>
+</html>
