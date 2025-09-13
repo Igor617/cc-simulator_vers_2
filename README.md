@@ -7,4 +7,4 @@
 - `index.html` — редирект на активную версию в папке `latest` 
 
 ## Как открыть
-[Открыть сайт]([https://username.github.io/latest/](https://igor617.github.io/cc-simulator_vers_2/latest/))
+[Открыть сайт]([https://igor617.github.io/cc-simulator_vers_2/latest/])
