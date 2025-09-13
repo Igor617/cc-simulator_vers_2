@@ -8,4 +8,4 @@
 - `latest` - ссылается на последню папку с версией. Папка с версией, например, v6 устанавливается пользователем вручную
 
 ## Как открыть
-[Открыть сайт]([https://igor617.github.io/cc-simulator_vers_2/latest/])
+[Открыть сайт](https://igor617.github.io/cc-simulator_vers_2/latest/)
