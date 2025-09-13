@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>2D Симулятор колл-центра — точный визуал (v4.9)</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<style>
+  :root{
+    --bg:#0c1117;--panel:#111827;--muted:#334155;--ink:#e5e7eb;--ink2:#94a3b8;
+    --accent:#22c55e;--accent2:#16a34a;--danger:#ef4444;--wait:#f59e0b;--blue:#3b82f6
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{display:flex;flex-direction:column;gap:12px;max-width:1280px;margin:0 auto;padding:16px}
+  h1{font-size:18px;margin:0 0 6px 0;font-weight:600;letter-spacing:.2px}
+  .controls{display:grid;gap:14px;background:var(--panel);padding:12px;border-radius:12px}
+  .inputs{display:grid;gap:16px 24px}
+  @media (min-width:1280px){ .inputs{grid-template-columns:repeat(3, 1fr)} }
+  @media (min-width:900px) and (max-width:1279px){ .inputs{grid-template-columns:repeat(2, 1fr)} }
+  @media (max-width:899px){ .inputs{grid-template-columns:1fr} }
+  .field{display:flex;flex-direction:column;gap:8px;min-height:74px}
+  .label{font-size:12px;color:var(--ink2);line-height:1.2;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .controls input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #1f2937;background:#0b1220;color:var(--ink);box-sizing:border-box;min-height:40px}
+  .actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:4px;justify-content:space-between}
+  .leftActions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .rightActions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .btn{cursor:pointer;border:1px solid #1f2937;background:#0b1220;color:#fff;padding:10px 14px;border-radius:14px;text-align:center;user-select:none;min-width:112px}
+  .btn.primary{background:var(--accent);border-color:var(--accent2);color:#052e12;font-weight:700}
+  .btn.stop{background:#7f1d1d;border-color:#991b1b}
+  .btn.ghost{background:transparent;border-color:#334155}
+  .speed{display:flex;gap:10px;flex-wrap:wrap}
+  .speed .chip{padding:8px 12px;border:1px solid #1e3a8a;background:#172554;border-radius:12px;min-width:44px;text-align:center;cursor:pointer;user-select:none;color:#cbd5e1}
+  .speed .chip.active{background:#3b82f6;border-color:#2563eb;color:#021025;font-weight:700}
+  .opts{display:flex;gap:10px;align-items:center}
+  .check{display:flex;gap:8px;align-items:center;border:1px solid #334155;border-radius:10px;padding:8px 10px;background:#0b1220;color:#cbd5e1}
+  .timer{font-variant-numeric:tabular-nums; padding:8px 10px;border:1px solid #334155;border-radius:10px;background:#0b1220;color:#cbd5e1;min-width:150px;text-align:center}
+  .stage{background:var(--panel);border-radius:14px;padding:10px;position:relative;overflow:hidden}
+  svg{width:100%;height:440px;border-radius:10px;display:block;background:#0b1220}
+  .legend{position:absolute;right:10px;top:10px;font-size:12px;color:#cbd5e1;display:flex;gap:14px;pointer-events:none}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .q{background:var(--danger)} .s{background:var(--blue)} .a{background:var(--wait)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>2D Симулятор колл-центра — точный визуал</h1>
+  <div class="controls">
+    <div class="inputs">
+      <div class="field"><div class="label">λ / час</div><input type="number" id="inpLambda" value="1"></div>
+      <div class="field"><div class="label">AHT, сек</div><input type="number" id="inpAHT" value="120"></div>
+      <div class="field"><div class="label">ACW, сек</div><input type="number" id="inpACW" value="120"></div>
+      <div class="field"><div class="label">SLA, %</div><input type="number" id="inpSLA" value="100"></div>
+      <div class="field"><div class="label">T, сек</div><input type="number" id="inpThresh" value="1"></div>
+      <div class="field"><div class="label">Лимит занятости, %</div><input type="number" id="inpOccMax" value="100"></div>
+      <div class="field"><div class="label">Шринкаж, %</div><input type="number" id="inpShrink" value="0"></div>
+      <div class="field"><div class="label">Штат (N)</div><input type="number" id="inpN" value="1"></div>
+    </div>
+    <div class="actions">
+      <div class="leftActions">
+        <div class="btn primary" id="btnStart">Запустить ▶</div>
+        <div class="btn stop" id="btnStop">Остановить ■</div>
+        <div class="btn ghost" id="btnReset">Сброс</div>
+        <div class="timer" id="simTimer">Сим: 00:00:00 (x1)</div>
+      </div>
+      <div class="rightActions">
+        <div class="speed" id="speed">
+          <div class="chip active" data-speed="1">x1</div>
+          <div class="chip" data-speed="2">x2</div>
+          <div class="chip" data-speed="4">x4</div>
+          <div class="chip" data-speed="8">x8</div>
+        </div>
+        <div class="opts">
+          <label class="check"><input type="checkbox" id="animToggle"/><span>Анимация переходов</span></label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <svg id="sim" viewBox="0 0 1280 440" preserveAspectRatio="xMidYMid meet">
+      <g id="gSource"><circle cx="80" cy="220" r="44" fill="none" stroke="#22c55e" stroke-width="4"/><text x="80" y="225" text-anchor="middle" fill="#e2e8f0" font-size="14">вход</text></g>
+      <g id="gQueue"><rect x="150" y="40" width="300" height="360" rx="8" fill="#121b26" stroke="#245" stroke-width="3"/><text id="labelQueue" x="160" y="34" fill="#cbd5e1" font-size="14">В очереди: 0</text></g>
+      <g id="gService"><rect x="480" y="40" width="420" height="360" rx="8" fill="#0f2314" stroke="#256a3f" stroke-width="3"/><text id="labelService" x="490" y="34" fill="#cbd5e1" font-size="14">В работе: 0 / 1 (активно: 1)</text></g>
+      <g id="gACW"><rect x="930" y="40" width="280" height="360" rx="8" fill="#221a0a" stroke="#a16207" stroke-width="3"/><text id="labelACW" x="940" y="34" fill="#cbd5e1" font-size="14">Пост-обработка: 0</text></g>
+      <g id="gDone"><circle cx="1240" cy="220" r="44" fill="none" stroke="#22c55e" stroke-width="4"/><text x="1240" y="218" text-anchor="middle" fill="#e2e8f0" font-size="14">готово</text><text id="txtDoneNum" x="1240" y="246" text-anchor="middle" fill="#94a3b8" font-size="12">0</text></g>
+    </svg>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = s=>document.querySelector(s);
+  const svgns="http://www.w3.org/2000/svg";
+  const rndExp=m=>-m*Math.log(1-Math.random());
+  const pad2=n=>String(n).padStart(2,'0');
+  const fmtHMS=secs=>{secs=Math.max(0,Math.floor(secs));const h=Math.floor(secs/3600),m=Math.floor((secs%3600)/60),s=secs%60;return pad2(h)+':'+pad2(m)+':'+pad2(s)};
+
+  let running=false, speedMul=1;
+  const baseScale=60;
+  const fixedHz=30, fixedRealDt=1/fixedHz;
+  let acc=0, lastTs=0, simT=0, nextArrival=0;
+  let anim=false; // по умолчанию — без анимации (точный визуал)
+
+  const areas={queue:{x:150,y:40,w:300,h:360,color:'#ef4444'},
+               service:{x:480,y:40,w:420,h:360,color:'#3b82f6'},
+               acw:{x:930,y:40,w:280,h:360,color:'#f59e0b'}};
+
+  const queueSlots=[]; let qCols=0,qRows=0,qCell=16;
+  const acwSlots=[]; let aCols=0,aRows=0,aCell=16;
+
+  const dots=new Set(); let idSeq=1, doneCount=0;
+  let params={lambda:1,aht:120,acw:120,N:1,shrink:0};
+
+  const gService=$('#gService');
+  const labelQueue=$('#labelQueue'), labelService=$('#labelService'), labelACW=$('#labelACW'), txtDoneNum=$('#txtDoneNum'), simTimer=$('#simTimer']);
+
+  function buildQueueGrid(){ qCols=Math.floor((areas.queue.w-20)/qCell); qRows=Math.floor((areas.queue.h-20)/qCell); queueSlots.length=qCols*qRows; queueSlots.fill(null); }
+  function buildAcwGrid(){ aCols=Math.floor((areas.acw.w-20)/aCell); aRows=Math.floor((areas.acw.h-20)/aCell); acwSlots.length=aCols*aRows; acwSlots.fill(null); }
+  function slotQ(i){ const c=i%qCols,r=Math.floor(i/qCols); return {x:areas.queue.x+10+c*qCell+qCell*.5, y:areas.queue.y+10+r*qCell+qCell*.5} }
+  function slotA(i){ const c=i%aCols,r=Math.floor(i/aCols); return {x:areas.acw.x+10+c*aCell+aCell*.5, y:areas.acw.y+10+r*aCell+aCell*.5} }
+  function freeQ(){ for(let i=0;i<queueSlots.length;i++) if(!queueSlots[i]) return i; return null }
+  function freeA(){ for(let i=0;i<acwSlots.length;i++) if(!acwSlots[i]) return i; return null }
+
+  function buildStaff(){
+    Array.from(gService.querySelectorAll('.agent')).forEach(n=>n.remove());
+    const N=params.N|0, cols=3, rows=Math.ceil(N/cols), pad=12, cellW=(areas.service.w-pad*2)/cols, cellH=(areas.service.h-pad*2)/rows;
+    for(let i=0;i<N;i++){
+      const c=i%cols,r=Math.floor(i/cols),x=areas.service.x+pad+c*cellW+cellW*.5,y=areas.service.y+pad+r*cellH+cellH*.5;
+      const g=document.createElementNS(svgns,'g'); g.classList.add('agent');
+      const circle=document.createElementNS(svgns,'circle'); circle.setAttribute('cx',x); circle.setAttribute('cy',y); circle.setAttribute('r',14);
+      circle.setAttribute('fill','#0b1220'); circle.setAttribute('stroke','#16a34a'); circle.setAttribute('stroke-width','2');
+      g.appendChild(circle); gService.appendChild(g);
+      staff.push({id:i+1,state:'idle',x,y,el=g,busyUntil:0,acwUntil:null});
+    }
+    NActive=N; updateServiceLabel();
+  }
+
+  let staff=[], NActive=1;
+
+  function updateServiceLabel(){ const busy=staff.filter(s=>s.state==='busy').length; labelService.textContent=`В работе: ${busy} / ${params.N} (активно: ${NActive})` }
+  function setParams(){ params.lambda=+$('#inpLambda').value; params.aht=+$('#inpAHT').value; params.acw=+$('#inpACW').value; params.N=+$('#inpN').value; buildStaff() }
+
+  const mkDot=(x,y,color)=>{ const c=document.createElementNS(svgns,'circle'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',5); c.setAttribute('fill',color); $('#sim').appendChild(c); return c };
+
+  function spawn(){
+    const sx=80, sy=220; const qi=freeQ(); if(qi!=null) queueSlots[qi]='RES';
+    const target=qi!=null?slotQ(qi):{x:areas.queue.x+areas.queue.w-15,y:areas.queue.y+areas.queue.h-15};
+    const el=mkDot(sx,sy,areas.queue.color);
+    const d={id:idSeq++,el,x:sx,y:sy,target, state:'toQueue', createdAt:simT, enterQueueAt:0, enterServiceAt:0, leaveServiceAt:0, enterACWAt:0, qSlot:qi, acwSlot:null, acwEndAt:null, assigned:null};
+    dots.add(d);
+  }
+
+  function tryAssign(){
+    const w=[...dots].filter(d=>d.state==='inQueue').sort((a,b)=>a.enterQueueAt-b.enterQueueAt)[0];
+    if(!w) return false;
+    const agent=staff.find(a=>a.state==='idle'); if(!agent) return false;
+    w.state='toService'; w.target={x:agent.x,y:agent.y}; w.el.setAttribute('fill',areas.service.color); w.assigned=agent;
+    agent.state='busy'; agent.busyUntil=simT+Math.max(1,rndExp(params.aht));
+    if(w.qSlot!=null){ queueSlots[w.qSlot]=null; w.qSlot=null }
+    updateServiceLabel(); return true;
+  }
+
+  function scheduleArrivals(tEnd){
+    const ratePerSec=params.lambda/3600;
+    while(nextArrival<=tEnd){
+      spawn();
+      nextArrival=(nextArrival||simT)+Math.max(1,rndExp(1/ratePerSec));
+    }
+  }
+
+  function updateCounters(){
+    labelQueue.textContent=`В очереди: ${[...dots].filter(d=>d.state==='inQueue').length}`;
+    labelACW.textContent=`Пост-обработка: ${[...dots].filter(d=>d.state==='inACW'||d.state==='toACW').length}`;
+    updateServiceLabel(); txtDoneNum.textContent=doneCount; simTimer.textContent=`Сим: ${fmtHMS(simT)} (x${speedMul})`;
+  }
+
+  function moveTo(d, simDt){
+    if(!anim){ d.x=d.target.x; d.y=d.target.y; d.el.setAttribute('cx',d.x); d.el.setAttribute('cy',d.y); return; }
+    const travelSim=0.5; // переход ≤ 0.5 сим-сек
+    const dx=d.target.x-d.x, dy=d.target.y-d.y, dist=Math.hypot(dx,dy);
+    const step = dist * Math.min(1, simDt / travelSim);
+    if(dist<=0.5){ d.x=d.target.x; d.y=d.target.y }
+    else { d.x += (dx/dist)*step; d.y += (dy/dist)*step }
+    d.el.setAttribute('cx',d.x); d.el.setAttribute('cy',d.y);
+  }
+
+  function step(realDt){
+    if(!running) return;
+    const simDt=realDt*baseScale*speedMul, tEnd=simT+simDt;
+    scheduleArrivals(tEnd);
+
+    dots.forEach(d=>{
+      if(d.state==='toQueue'||d.state==='toService'||d.state==='toACW'){
+        moveTo(d, simDt);
+        const arrived = Math.hypot(d.target.x-d.x, d.target.y-d.y) <= 0.5;
+        if(arrived){
+          if(d.state==='toQueue'){ d.state='inQueue'; d.enterQueueAt=simT; if(d.qSlot!=null) queueSlots[d.qSlot]=d; }
+          else if(d.state==='toService'){ d.state='inService'; d.enterServiceAt=simT; }
+          else if(d.state==='toACW'){ d.state='inACW'; d.enterACWAt=simT; const dur=Math.max(1,rndExp(params.acw||1)); d.acwEndAt=simT+dur; if(d.assigned) d.assigned.acwUntil=d.acwEndAt; if(d.acwSlot!=null) acwSlots[d.acwSlot]=d; }
+        }
+      }
+      if(d.state==='inACW' && d.acwEndAt && simT>=d.acwEndAt){
+        if(d.acwSlot!=null) acwSlots[d.acwSlot]=null;
+        d.el.remove(); dots.delete(d); doneCount++; if(d.assigned){ d.assigned.state='idle'; d.assigned.acwUntil=null; }
+      }
+    });
+
+    // агенты
+    staff.forEach(ag=>{
+      if(ag.state==='busy' && simT+simDt>=ag.busyUntil){
+        const d=[...dots].find(o=>o.assigned===ag&&o.state==='inService');
+        if(d){
+          d.state='toACW'; d.el.setAttribute('fill',areas.acw.color);
+          const ai=freeA(); if(ai!=null){ acwSlots[ai]='RES'; d.acwSlot=ai; d.target=slotA(ai) } else { d.target={x:areas.acw.x+areas.acw.w-15, y:areas.acw.y+areas.acw.h-15}; d.acwSlot=null }
+        }
+        ag.state='acw'; ag.acwUntil=null;
+      } else if(ag.state==='acw' && ag.acwUntil!=null && simT+simDt>=ag.acwUntil){
+        ag.state='idle'; ag.acwUntil=null;
+      }
+    });
+
+    while(tryAssign()) {}
+    simT=tEnd; updateCounters();
+  }
+
+  function loop(ts){ if(!lastTs) lastTs=ts; let d=(ts-lastTs)/1000; if(d>0.25) d=0.25; lastTs=ts; acc+=d; while(acc>=fixedRealDt){ step(fixedRealDt); acc-=fixedRealDt } requestAnimationFrame(loop) }
+  requestAnimationFrame(loop);
+
+  // UI
+  ['#inpLambda','#inpAHT','#inpACW','#inpN'].forEach(id=>$(id).addEventListener('change',()=>{ if(!running) setParams() }));
+  $('#speed').addEventListener('click',e=>{ const b=e.target.closest('.chip'); if(!b) return; $('#speed .chip.active')?.classList.remove('active'); b.classList.add('active'); speedMul=+b.dataset.speed; updateCounters(); });
+  $('#animToggle').addEventListener('change',e=>{ anim=e.target.checked });
+
+  $('#btnStart').addEventListener('click',()=>{
+    if(running) return;
+    dots.forEach(d=>d.el.remove()); dots.clear(); doneCount=0;
+    simT=0; acc=0; lastTs=0; nextArrival=0;
+    buildQueueGrid(); buildAcwGrid(); setParams(); running=true; updateCounters();
+  });
+  $('#btnStop').addEventListener('click',()=>{ running=false });
+  $('#btnReset').addEventListener('click',()=>{ running=false; dots.forEach(d=>d.el.remove()); dots.clear(); doneCount=0; simT=0; acc=0; lastTs=0; nextArrival=0; updateCounters() });
+
+  buildQueueGrid(); buildAcwGrid(); buildStaff(); updateCounters();
+})();
+</script>
+</body>
+</html>
