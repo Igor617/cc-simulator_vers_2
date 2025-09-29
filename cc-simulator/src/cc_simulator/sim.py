@@ -274,4 +274,131 @@ class Simulation:
         return {
             **self.get_state(),
             "logs": self.logs,
+            "summaryHourly": self._compute_hourly_summary(),
+            "summaryDay": self._compute_day_summary(),
+        }
+
+    # -------- New summary helpers (align with frontend v4.15 logic) ---------
+    def _compute_hourly_summary(self) -> list[dict]:
+        logs = self.logs
+        if not logs.get("t"):
+            return []
+        # Group per hour index
+        hour_map: dict[int, dict] = {}
+        for i, t in enumerate(logs["t"]):
+            hour = int(t // 3600)
+            o = hour_map.setdefault(
+                hour,
+                {
+                    "arrivals": 0,
+                    "answered": 0,
+                    "answeredInT": 0,
+                    "completed": 0,
+                    "asa": [],
+                    "aht": [],
+                    "wait": [],
+                    "occ": [],
+                    "staff": [],
+                    "maxQ": 0,
+                },
+            )
+            o["arrivals"] += logs["arrivals"][i]
+            o["answered"] += logs["answered"][i]
+            o["answeredInT"] += logs["answeredInT"][i]
+            o["completed"] += logs["completed"][i]
+            o["asa"].append(logs["asaMin"][i])
+            o["aht"].append(logs["ahtMin"][i])
+            o["wait"].append(logs["waitMin"][i])
+            o["occ"].append(logs["occ"][i])  # fraction (0..1)
+            o["staff"].append(logs["staffActive"][i])
+            q_len = logs["q"][i]
+            if q_len > o["maxQ"]:
+                o["maxQ"] = q_len
+
+        def avg(a: list[float]) -> float:
+            return sum(a) / len(a) if a else 0.0
+
+        HT = self.aht + self.acw  # seconds
+        occ_limit = max(0.01, self.occ_max / 100.0)
+
+        summary: list[dict] = []
+        for hour in sorted(hour_map.keys()):
+            o = hour_map[hour]
+            answered = o["answered"]
+            sla = (o["answeredInT"] / answered * 100.0) if answered else 0.0
+            asa = avg(o["asa"])  # already minutes
+            aht = avg(o["aht"])  # minutes
+            wait = avg(o["wait"])  # minutes
+            occ_pct = avg(o["occ"]) * 100.0  # percent
+            staff_avg = avg(o["staff"])  # agents
+            # Load in Erlangs (arrivals * handling time / 3600)
+            traffic_load = (o["arrivals"] * (HT / 3600.0)) if HT > 0 else 0.0
+            required_active = traffic_load / occ_limit if occ_limit > 0 else 0.0
+            delta = required_active - staff_avg
+            summary.append(
+                {
+                    "hour": hour,
+                    "hourLabel": f"{hour:02d}:00",
+                    "arrivals": o["arrivals"],
+                    "answered": answered,
+                    "answeredInT": o["answeredInT"],
+                    "slaPct": round(sla, 3),
+                    "asaMin": round(asa, 4),
+                    "ahtMin": round(aht, 4),
+                    "waitMin": round(wait, 4),
+                    "maxQueue": o["maxQ"],
+                    "staffActiveAvg": round(staff_avg, 4),
+                    "occAvgPct": round(occ_pct, 3),
+                    "requiredActive": round(required_active, 4),
+                    "deltaActive": round(delta, 4),
+                }
+            )
+        return summary
+
+    def _compute_day_summary(self) -> dict:
+        logs = self.logs
+        if not logs.get("t"):
+            return {
+                "minutes": 0,
+                "totalArrivals": 0,
+                "totalAnswered": 0,
+                "totalCompleted": 0,
+                "slaAvgPct": 0.0,
+                "asaAvgMin": 0.0,
+                "ahtAvgMin": 0.0,
+                "occAvgPct": 0.0,
+                "staffActiveAvg": 0.0,
+                "requiredHH": 0.0,
+                "actualHH": 0.0,
+                "deficitHH": 0.0,
+            }
+        minutes = len(logs["t"])
+        total_arr = sum(logs["arrivals"])
+        total_ans = sum(logs["answered"])
+        total_comp = sum(logs["completed"])
+        total_ans_t = sum(logs["answeredInT"])
+        sla_avg = (total_ans_t / total_ans * 100.0) if total_ans else 0.0
+        asa_avg = sum(logs["asaMin"]) / minutes if minutes else 0.0
+        aht_avg = sum(logs["ahtMin"]) / minutes if minutes else 0.0
+        occ_avg_pct = (sum(logs["occ"]) / minutes * 100.0) if minutes else 0.0
+        staff_avg = sum(logs["staffActive"]) / minutes if minutes else 0.0
+
+        hourly = self._compute_hourly_summary()
+        required_hh = sum(h["requiredActive"] for h in hourly)
+        actual_hh = sum(h["staffActiveAvg"] for h in hourly)
+        deficit_hh = required_hh - actual_hh
+
+        return {
+            "minutes": minutes,
+            "totalArrivals": total_arr,
+            "totalAnswered": total_ans,
+            "totalCompleted": total_comp,
+            "slaAvgPct": round(sla_avg, 3),
+            "asaAvgMin": round(asa_avg, 4),
+            "ahtAvgMin": round(aht_avg, 4),
+            "occAvgPct": round(occ_avg_pct, 3),
+            "staffActiveAvg": round(staff_avg, 4),
+            "requiredHH": round(required_hh, 4),
+            "actualHH": round(actual_hh, 4),
+            "deficitHH": round(deficit_hh, 4),
         }
